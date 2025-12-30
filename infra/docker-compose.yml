@@ -2,23 +2,27 @@ version: "3.9"
 
 services:
   redpanda:
-    image: redpandadata/redpanda:v23.3.3
+    image: vectorized/redpanda:v23.3.12
     container_name: redpanda
-    command:
-      - redpanda
-      - start
-      - --overprovisioned
-      - --smp 1
-      - --memory 1G
-      - --reserve-memory 0M
-      - --node-id 0
-      - --check=false
-      - --kafka-addr PLAINTEXT://0.0.0.0:9092
-      - --advertise-kafka-addr PLAINTEXT://redpanda:9092
+    command: >
+      redpanda start
+      --overprovisioned
+      --smp 1
+      --memory 1G
+      --reserve-memory 0M
+      --node-id 0
+      --check=false
+      --kafka-addr PLAINTEXT://0.0.0.0:9092
     ports:
       - "9092:9092"
+      - "29092:29092"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9644/ready"]
+      interval: 5s
+      retries: 10
+      start_period: 10s
     networks:
-      - log-net
+      - infra_net
 
   clickhouse:
     image: clickhouse/clickhouse-server:23.8
@@ -26,40 +30,35 @@ services:
     ports:
       - "8123:8123"
       - "9000:9000"
-    volumes:
-      - clickhouse-data:/var/lib/clickhouse
     networks:
-      - log-net
-
-  minio:
-    image: minio/minio:RELEASE.2023-10-25T06-33-25Z
-    container_name: minio
-    command: server /data --console-address ":9001"
-    ports:
-      - "9001:9001"
-      - "9002:9000"
-    environment:
-      MINIO_ROOT_USER: minio
-      MINIO_ROOT_PASSWORD: minio123
-    volumes:
-      - minio-data:/data
-    networks:
-      - log-net
+      - infra_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8123/ping"]
+      interval: 5s
+      retries: 10
+      start_period: 10s
 
   ingestion-api:
-    build: ../services/ingestion-api
+    build:
+      context: ../ingestion-api 
+      dockerfile: Dockerfile
     container_name: ingestion-api
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+      CLICKHOUSE_HOST: clickhouse
+      CLICKHOUSE_PORT: 8123
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ""
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    networks:
+      - infra_net
     ports:
       - "8000:8000"
-    depends_on:
-      - redpanda
-    networks:
-      - log-net
 
 networks:
-  log-net:
+  infra_net:
     driver: bridge
-
-volumes:
-  clickhouse-data:
-  minio-data:
