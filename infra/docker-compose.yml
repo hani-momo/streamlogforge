@@ -46,6 +46,16 @@ services:
     networks:
       - log-net
 
+  ingestion-api:
+    build: ../services/ingestion-api
+    container_name: ingestion-api
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redpanda
+    networks:
+      - log-net
+
 networks:
   log-net:
     driver: bridge
