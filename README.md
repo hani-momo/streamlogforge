@@ -1,0 +1,1 @@
+receiving logs from services, streaming processing, aggregating and storing, make api for requests, show results in ui
